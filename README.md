@@ -25,7 +25,7 @@ This application allows you to build complex workflows in a visual format by con
 
 1.  **Clone the repository:**
     ```bash
-    git clone <https://github.com/Aryan123-rgb/weavy-clone>
+    git clone https://github.com/Aryan123-rgb/weavy-clone
     cd weavy-clone
     ```
 
