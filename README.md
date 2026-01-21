@@ -3,6 +3,7 @@
 A powerful visual workflow builder for AI and media processing tasks.
 
 **Live Demo:** [https://weavy-clone-mauve.vercel.app](https://weavy-clone-mauve.vercel.app)
+**Github Link:** [https://github.com/Aryan123-rgb/weavy-clone](https://github.com/Aryan123-rgb/weavy-clone)
 
 ## How It Works
 This application allows you to build complex workflows in a visual format by connecting different nodes. You can process media, run AI models, and chain outputs from one node to another.
