@@ -2,10 +2,10 @@
 
 A powerful visual workflow builder for AI and media processing tasks.
 
-**Live Demo:** [https://weavy-clone-mauve.vercel.app/flow/cmkehumzy0000kz44zccxzhh6](https://weavy-clone-mauve.vercel.app/flow/cmkehumzy0000kz44zccxzhh6)
+**Live Demo:** [https://weavy-clone-mauve.vercel.app](https://weavy-clone-mauve.vercel.app)
 
 ## How It Works
-This application allows you to build complex workflows by connecting different nodes. You can process media, run AI models, and chain outputs from one node to another.
+This application allows you to build complex workflows in a visual format by connecting different nodes. You can process media, run AI models, and chain outputs from one node to another.
 
 **Key Features:**
 *   **Visual Editor:** Drag-and-drop interface powered by React Flow.
@@ -25,7 +25,7 @@ This application allows you to build complex workflows by connecting different n
 
 1.  **Clone the repository:**
     ```bash
-    git clone <repository-url>
+    git clone <https://github.com/Aryan123-rgb/weavy-clone>
     cd weavy-clone
     ```
 
