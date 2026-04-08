@@ -2,8 +2,8 @@ import { z } from "zod";
 import { auth } from "@clerk/nextjs/server";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import { tasks, runs } from "@trigger.dev/sdk/v3";
-import type { runLLMTask } from "~/trigger/task";
+import { env } from "env";
+import { inngest } from "~/inngest/client";
 
 export const workflowRouter = createTRPCRouter({
   create: publicProcedure
@@ -26,16 +26,13 @@ export const workflowRouter = createTRPCRouter({
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
-      const { userId } = await auth();
-
-      if (!userId) throw new TRPCError({ code: "UNAUTHORIZED" });
-
       return ctx.db.workflow.findFirst({
         where: {
           id: input.id,
         },
       });
     }),
+
   runLLM: publicProcedure
     .input(
       z.object({
@@ -44,53 +41,30 @@ export const workflowRouter = createTRPCRouter({
         imageURL: z.string().optional(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const { userId } = await auth();
       if (!userId) throw new TRPCError({ code: "UNAUTHORIZED" });
 
       try {
-        // 1. Trigger the task
-        const handle = await tasks.trigger<typeof runLLMTask>(
-          "run-llm-task",
-          input,
-        );
-
-        // 2. Poll for completion
-        let attempts = 0;
-        const maxAttempts = 60; // 60 seconds max wait
-
-        while (attempts < maxAttempts) {
-          const task = await runs.retrieve(handle.id);
-
-          if (task.status === "COMPLETED") {
-            return {
-              output: task.output,
-              status: task.status,
-              id: task.id,
-            };
-          }
-
-          if (
-            task.status === "FAILED" ||
-            task.status === "CANCELED" ||
-            task.status === "CRASHED"
-          ) {
-            return {
-              error: { message: "AI Task failed or was canceled." },
-              status: task.status,
-              id: task.id,
-            };
-          }
-
-          // Wait 1s before checking again
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          attempts++;
-        }
-
-        throw new TRPCError({
-          code: "TIMEOUT",
-          message: "Task timed out polling for result",
+        // Create an execution record
+        const execution = await ctx.db.execution.create({
+          data: {
+            status: "PENDING",
+          },
         });
+
+        // Dipatch to Inngest
+        await inngest.send({
+          name: "llm/run",
+          data: {
+            executionId: execution.id,
+            prompt: input.prompt,
+            system: input.system,
+            imageURL: input.imageURL,
+          },
+        });
+
+        return { executionId: execution.id };
       } catch (error) {
         if (error instanceof TRPCError) throw error;
         
@@ -101,12 +75,29 @@ export const workflowRouter = createTRPCRouter({
         });
       }
     }),
-    save: publicProcedure
+
+  getExecution: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const { userId } = await auth();
+      if (!userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      const exec = await ctx.db.execution.findUnique({
+        where: { id: input.id },
+      });
+
+      if (!exec) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      return exec;
+    }),
+
+  save: publicProcedure
     .input(
       z.object({
         id: z.string(),
         definition: z.custom<any>((val) => {
-          // Rudimentary validation: check if it's an object (JSON)
           return typeof val === "object" && val !== null;
         }),
       }),
@@ -118,7 +109,6 @@ export const workflowRouter = createTRPCRouter({
       return ctx.db.workflow.update({
         where: {
           id: input.id,
-          // Ensure user owns the workflow if necessary, though typical for MVP valid check is fine
         },
         data: {
           definition: input.definition,
@@ -126,3 +116,4 @@ export const workflowRouter = createTRPCRouter({
       });
     }),
 });
+

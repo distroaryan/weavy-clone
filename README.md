@@ -1,77 +1,130 @@
-# Weavy Clone
+# Weavy-Clone
 
-A powerful visual workflow builder for AI and media processing tasks.
+Weavy-Clone is a node-based workflow builder designed to execute language models, process multimedia, and chain logical steps together visually. The platform offers an intuitive drag-and-drop workspace where complex processes can be assembled quickly from discrete action nodes.
 
-**Live Demo:** [https://weavy-clone-mauve.vercel.app](https://weavy-clone-mauve.vercel.app)
-**Github Link:** [https://github.com/Aryan123-rgb/weavy-clone](https://github.com/Aryan123-rgb/weavy-clone)
+## Core Features
+- **Visual Node Editor**: Build complete processes by connecting `Image Upload -> Frame Extract -> Run LLM -> Output`.
+- **Background Execution**: LLM invocations and heavy media processes are completely offloaded to resilient background workers utilizing **Inngest** for zero UI blocking.
+- **Serverless API**: Fast, type-safe API routing using **tRPC**, with queries directly tied to a cloud Postgres schema.
 
-## How It Works
-This application allows you to build complex workflows in a visual format by connecting different nodes. You can process media, run AI models, and chain outputs from one node to another.
+## Architecture
 
-**Key Features:**
-*   **Visual Editor:** Drag-and-drop interface powered by React Flow.
-*   **AI Integration:** Use LLM nodes to generate text or analyze content (Groq).
-*   **Media Processing:** Upload videos/images, crop images, and extract frames from videos.
-*   **Background Jobs:** Heavy tasks (like video processing and LLM calls) are handled reliably by **Trigger.dev**.
-*   **Authentication:** Secure user management with Clerk.
+Weavy-Clone relies on a specialized modern stack ensuring fast iteration and robust production-ready services:
+- **Next.js 15 (App Router)** & **React**: Core frameworks.
+- **tRPC** + **React Query**: Type-safe seamless client-server communication mechanism.
+- **Prisma** + **PostgreSQL**: Declarative data modeling and database manipulation.
+- **Inngest**: Background worker handling long or heavy asynchronous functions (e.g. LLM calls).
+- **Zustand**: Managing the rich state required by the React Flow components.
+- **Clerk**: Comprehensive user authentication and session management.
 
-## Installation
+```mermaid
+flowchart TB
+    UI[Frontend: Next.js + React Flow]
+    TRPC[Backend: tRPC Router]
+    DB[(PostgreSQL\nvia Prisma)]
+    InngestClient[Inngest SDK]
+    InngestWorker[Inngest Functions]
+    LLM[Groq Llama API]
 
-### Prerequisites
-*   Node.js & npm
-*   PostgreSQL Database
-*   Accounts for: [Clerk](https://clerk.com), [Cloudinary](https://cloudinary.com), [Trigger.dev](https://trigger.dev), [Groq](https://groq.com)
+    UI -- "Mutations & Queries" --> TRPC
+    TRPC -- "Reads & Writes\n(Workflows, Executions)" --> DB
+    TRPC -- "Dispatch async event" --> InngestClient
+    InngestClient -.-> InngestWorker
+    InngestWorker -- "Run LLM & Media processing" --> LLM
+    InngestWorker -- "Background Updates" --> DB
+```
 
-### Steps
+## Class Diagram
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/Aryan123-rgb/weavy-clone
-    cd weavy-clone
-    ```
+Nodes in the editor represent physical modules. Below is a structural class diagram representing how these Node states relate structurally to each other in the UI:
 
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+```mermaid
+classDiagram
+    class TextNode {
+        +String text
+        +output "text"
+    }
+    
+    class UploadImageNode {
+        +String imageUrl
+        +output "image"
+        +upload()
+    }
+    
+    class CropImageNode {
+        +String imageUrl
+        +input "image"
+        +output "image"
+        +crop(x, y, w, h)
+    }
 
-3.  **Set up Environment Variables:**
-    Create a `.env` file in the root directory and add the following keys:
-    ```env
-    # Database
-    DATABASE_URL="postgresql://..."
+    class ExtractVideoFrameNode {
+        +String videoUrl
+        +String imageUrl
+        +input "video"
+        +output "image"
+        +extract(timestamp)
+    }
+    
+    class RunLLMNode {
+        +String prompt
+        +String system
+        +String imageURL
+        +String result
+        +input "prompt"
+        +input "system"
+        +input "image1"
+        +output "text"
+        +runLLMAsync()
+    }
 
-    # Auth (Clerk)
-    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=...
-    CLERK_SECRET_KEY=...
+    TextNode --> RunLLMNode : connect to `prompt` / `system`
+    UploadImageNode --> CropImageNode : connect `image` handles
+    CropImageNode --> RunLLMNode : connect to `image1`
+    ExtractVideoFrameNode --> RunLLMNode : connect to `image1`
+```
 
-    # Cloudinary
-    NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=...
-    NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=...
-    CLOUDINARY_API_KEY=...
-    CLOUDINARY_API_SECRET=...
+## Repository Structure
 
-    # AI
-    GROQ_API_KEY=...
+```text
+weavy-clone/
+├── prisma/
+│   └── schema.prisma       # Database schema mapping
+├── src/
+│   ├── app/                # Next.js Application Routes
+│   │   ├── api/
+│   │   │   ├── inngest/    # Inngest Background Route
+│   │   │   └── trpc/       # tRPC Server Handler Route
+│   │   ├── flow/           # The active workflow builder view
+│   │   └── dashboard/      # User project dashboard
+│   ├── components/         # Reusable UI & Workflow elements
+│   │   ├── workflow/
+│   │   │   ├── nodes/      # Specific drag-and-drop Nodes
+│   │   │   ├── EditorCanvas.tsx
+│   │   │   └── WorkflowWrapper.tsx
+│   │   └── ui/             # Radix (shadcn) UI generic components
+│   ├── trpc/               # tRPC Provider definitions
+│   ├── server/             # Server Logic Layer
+│   │   └── api/
+│   │       ├── routers/    # Router Definitions (e.g. workflow endpoints)
+│   │       └── trpc.ts     # Core trpc configuration and session injector
+│   ├── inngest/            # Background Function Registry
+│   │   ├── client.ts       # Global Client Instantiator
+│   │   └── functions.ts    # Long-running workers (LLMs)
+│   └── lib/                # Shared utilities & configurations
+│       └── cloudinary.ts   # Image & Upload transformations
+└── package.json
+```
 
-    # Trigger.dev
-    TRIGGER_SECRET_KEY=...
-    ```
+## Getting Started
 
-4.  **Initialize Database:**
-    ```bash
-    npx prisma db push
-    ```
-
-5.  **Start the Development Server:**
-    ```bash
-    npm run dev
-    ```
-
-6.  **Start Trigger.dev (for background tasks):**
-    In a separate terminal, run:
-    ```bash
-    npx trigger.dev@latest dev
-    ```
-
-Open [http://localhost:3000](http://localhost:3000) to start building workflows.
+1. Set your `.env` following `.env.example`.
+2. Generate Database:
+```bash
+npx prisma generate
+npx prisma db push
+```
+3. Run dev server:
+```bash
+npm run dev
+```

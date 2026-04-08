@@ -50,6 +50,7 @@ export function RunLLMNode({ data, selected, id }: NodeProps<MyNode>) {
   const { result, systemUsed, promptUsed, imageUsed } = currentData;
 
   const runLLMMutation = api.workflow.runLLM.useMutation();
+  const apiUtils = api.useUtils();
 
   // Helper safely extract text string
   const safeGetText = (obj: unknown): string => {
@@ -197,39 +198,44 @@ export function RunLLMNode({ data, selected, id }: NodeProps<MyNode>) {
     }
 
     try {
-      // Trigger and Poll for result via tRPC
+      // 1. Trigger the background execution
       const runResult = await runLLMMutation.mutateAsync({
         system: systemText,
         prompt: promptTextVal,
         imageURL: imageUrl,
       });
 
-      // Check if task failed or has error (from our manual error object in tRPC)
-      // The tRPC mutation returns { error?: ... } if it failed gracefully inside the loop
-      // or throws if it crashed/timed out.
-      // We need to allow for the return type which might contain error property.
+      const { executionId } = runResult as { executionId?: string };
 
-      const resultData = runResult as any; // Type inference helper
-
-      if (resultData.error) {
-        const err = resultData.error as { message?: string };
-        const errorMessage = err.message ?? "Task failed";
-        throw new Error(errorMessage);
+      if (!executionId) {
+        throw new Error("Failed to start background execution.");
       }
 
-      const output = resultData.output as { result?: string } | undefined;
+      // 2. Poll for results 
+      let aiText = "";
+      let executionStatus = "PENDING";
+      
+      while (executionStatus === "PENDING") {
+        await new Promise((resolve) => setTimeout(resolve, 1500)); // poll every 1.5s
+        const execState = await apiUtils.workflow.getExecution.fetch({ id: executionId });
+        
+        if (execState.status === "COMPLETED") {
+          executionStatus = "COMPLETED";
+          aiText = execState.result || "";
+        } else if (execState.status === "FAILED") {
+          throw new Error(execState.result ?? "Background task failed to execute.");
+        }
+      }
 
-      // Check for valid output
-      if (!output?.result) {
-        console.warn("AI returned empty result", runResult);
+      // 3. Resolve the interface
+      if (!aiText) {
+        console.warn("AI returned empty result", executionId);
         toast.error("AI response generation failed: Recieved empty response", {
           description: "Please try again or check your prompt.",
         });
         setExecutionState(id, "failed");
         return;
       }
-
-      const aiText = output.result;
 
       updateNodeData(id, {
         result: aiText,

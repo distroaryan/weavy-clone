@@ -30,3 +30,13 @@ model Workflow {
 
     @@index([userId])
 }
+
+model Execution {
+    id         String   @id @default(cuid())
+    workflowId String?
+    nodeId     String?
+    status     String   // PENDING, COMPLETED, FAILED
+    result     String?  @db.Text
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+}

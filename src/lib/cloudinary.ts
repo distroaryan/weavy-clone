@@ -1,5 +1,4 @@
-import axios from "axios";
-import { env } from "~/env";
+import { env } from "env";
 
 /**
  * Utility function to load an image and get its natural dimensions.
@@ -100,20 +99,23 @@ export async function uploadToCloudinary(
 
   try {
     const cloudName = env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-    const response = await axios.post(
+    const response = await fetch(
       `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
-      formData,
+      {
+        method: "POST",
+        body: formData,
+      }
     );
 
-    return response.data.secure_url;
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || "Upload failed");
+    }
+
+    const data = await response.json();
+    return data.secure_url;
   } catch (error) {
     console.error("Cloudinary upload error:", error);
-    if (axios.isAxiosError(error) && error.response) {
-      const errorMessage = (error.response.data as { error?: { message?: string } })?.error?.message;
-      throw new Error(
-        errorMessage ?? error.message ?? "Upload failed",
-      );
-    }
     throw error;
   }
 }
@@ -127,26 +129,26 @@ export async function uploadToCloudinary(
  * @throws Error if the URL is invalid.
  */
 export function extractVideoFrame(videoUrl: string, timestamp: number): string {
-    if (!videoUrl.includes("/upload/")) {
-        throw new Error("Invalid Cloudinary Video URL");
-    }
+  if (!videoUrl.includes("/upload/")) {
+    throw new Error("Invalid Cloudinary Video URL");
+  }
 
-    // Inject `so_<timestamp>` (start offset) after `/upload/`
-    // Change extension to .jpg (forcing image format)
+  // Inject `so_<timestamp>` (start offset) after `/upload/`
+  // Change extension to .jpg (forcing image format)
 
-    const parts = videoUrl.split("/upload/");
-    const baseUrl = parts[0] + "/upload/";
-    const rest = parts[1];
+  const parts = videoUrl.split("/upload/");
+  const baseUrl = parts[0] + "/upload/";
+  const rest = parts[1];
 
-    if (!rest) {
-        throw new Error("Invalid Cloudinary Video URL Format");
-    }
+  if (!rest) {
+    throw new Error("Invalid Cloudinary Video URL Format");
+  }
 
-    const transformation = `so_${timestamp},f_jpg,fl_attachment:false`;
+  const transformation = `so_${timestamp},f_jpg,fl_attachment:false`;
 
-    // Remove extension from valid URL:
-    const lastDotIndex = rest.lastIndexOf(".");
-    const restNoExt = lastDotIndex !== -1 ? rest.substring(0, lastDotIndex) : rest;
+  // Remove extension from valid URL:
+  const lastDotIndex = rest.lastIndexOf(".");
+  const restNoExt = lastDotIndex !== -1 ? rest.substring(0, lastDotIndex) : rest;
 
-    return `${baseUrl}${transformation}/${restNoExt}.jpg`;
+  return `${baseUrl}${transformation}/${restNoExt}.jpg`;
 }

@@ -23,6 +23,7 @@ import { DraggableSidebarItem } from "./DraggableSidebarItem";
 import { useFlowStore } from "~/store/flowStore";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
+import { useAuth } from "@clerk/nextjs";
 
 /**
  * Configuration for available tool items in the sidebar.
@@ -81,8 +82,13 @@ export function LeftSidebar() {
   const { nodes, edges } = useFlowStore();
   const saveMutation = api.workflow.save.useMutation();
   const utils = api.useUtils();
+  const { isSignedIn } = useAuth();
 
   const toggleSidebar = () => {
+    if (!isSignedIn) {
+      toast.error("Sign in required", { description: "You must be logged in to access the toolkit." });
+      return;
+    }
     setIsCollapsed(!isCollapsed);
     if (!isCollapsed) {
       setActivePanel(null);
@@ -90,6 +96,11 @@ export function LeftSidebar() {
   };
 
   const handlePanelClick = (panel: "search" | "quick-access") => {
+    if (!isSignedIn) {
+      toast.error("Sign in required", { description: "You must be logged in to access the toolkit." });
+      return;
+    }
+    
     if (isCollapsed) {
       setIsCollapsed(false);
       setActivePanel(panel);
